@@ -1,5 +1,6 @@
 #include "driver/gpio.h"
 #include "driver/i2c.h"
+#include "driver/spi_master.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "freertos/task.h"
@@ -8,13 +9,112 @@
 
 #include "bme280.h"
 
-#define SDA_PIN GPIO_NUM_15
-#define SCL_PIN GPIO_NUM_2
+#define SDA_PIN GPIO_NUM_21
+#define SCL_PIN GPIO_NUM_22
+
+#define PIN_CS		GPIO_NUM_5
+#define PIN_CLK		GPIO_NUM_18
+#define PIN_MISO	GPIO_NUM_19
+#define PIN_MOSI	GPIO_NUM_23
 
 #define TAG_BME280 "BME280"
+#define TAG_DPSP "DEEP SLEEP"
 
 #define I2C_MASTER_ACK 0
 #define I2C_MASTER_NACK 1
+#include <sys/time.h>
+#include "esp_sleep.h"
+static RTC_DATA_ATTR struct timeval sleep_enter_time;
+
+void spi_master_init(spi_device_handle_t *spi_dev);
+{
+	spi_bus_config_t spi_cfg = {
+		.sclk_io_num = PIN_CLK,
+		.miso_io_num = PIN_MISO,
+		.mosi_io_num = PIN_MOSI,
+		.quadwp_io_num = -1,
+		.quadhd_io_num = -1
+	};
+
+	spi_device_interface_config_t dev_cfg = {
+#ifdef CONFIG_LCD_OVERCLOCK
+        .clock_speed_hz = 26 * 1000 * 1000,
+#else
+        .clock_speed_hz = 10 * 1000 * 1000,
+#endif
+        .mode = 0,
+        .spics_io_num = PIN_CS,
+        .queue_size = 7
+	};
+
+	ret = spi_bus_initialize(VSPI_HOST, &spi_cfg, 1);
+	ESP_ERROR_CHECK(ret);
+
+	ret = spi_bus_add_device(VSPI_HOST, &dev_cfg, spi_dev);
+	ESP_ERROR_CHECK(ret);
+}
+void BME280_delay_ms(uint32_t period)
+{
+    /*
+     * Return control or wait,
+     * for a period amount of milliseconds
+     */
+	vTaskDelay(period/portTICK_PERIOD_MS);
+}
+
+int8_t BME280_spi_read(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data, uint16_t len)
+{
+    int8_t rslt = 0; /* Return 0 for Success, non-zero for failure */
+
+    /*
+     * The parameter dev_id can be used as a variable to select which Chip Select pin has
+     * to be set low to activate the relevant device on the SPI bus
+     */
+
+    /*
+     * Data on the bus should be like
+     * |----------------+---------------------+-------------|
+     * | MOSI           | MISO                | Chip Select |
+     * |----------------+---------------------|-------------|
+     * | (don't care)   | (don't care)        | HIGH        |
+     * | (reg_addr)     | (don't care)        | LOW         |
+     * | (don't care)   | (reg_data[0])       | LOW         |
+     * | (....)         | (....)              | LOW         |
+     * | (don't care)   | (reg_data[len - 1]) | LOW         |
+     * | (don't care)   | (don't care)        | HIGH        |
+     * |----------------+---------------------|-------------|
+     */
+
+    return rslt;
+
+}
+
+int8_t BME280_spi_write(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data, uint16_t len)
+{
+    int8_t rslt = 0; /* Return 0 for Success, non-zero for failure */
+
+    /*
+     * The parameter dev_id can be used as a variable to select which Chip Select pin has
+     * to be set low to activate the relevant device on the SPI bus
+     */
+
+    /*
+     * Data on the bus should be like
+     * |---------------------+--------------+-------------|
+     * | MOSI                | MISO         | Chip Select |
+     * |---------------------+--------------|-------------|
+     * | (don't care)        | (don't care) | HIGH        |
+     * | (reg_addr)          | (don't care) | LOW         |
+     * | (reg_data[0])       | (don't care) | LOW         |
+     * | (....)              | (....)       | LOW         |
+     * | (reg_data[len - 1]) | (don't care) | LOW         |
+     * | (don't care)        | (don't care) | HIGH        |
+     * |---------------------+--------------|-------------|
+     */
+
+    return rslt;
+
+}
 
 void i2c_master_init()
 {
@@ -160,18 +260,37 @@ void task_bme280_forced_mode(void *ignore) {
 
 	com_rslt += bme280_set_filter(BME280_FILTER_COEFF_OFF);
 	if (com_rslt == SUCCESS) {
-		while(true) {
+		{
 			com_rslt = bme280_get_forced_uncomp_pressure_temperature_humidity(
 				&v_uncomp_pressure_s32, &v_uncomp_temperature_s32, &v_uncomp_humidity_s32);
 
 			if (com_rslt == SUCCESS) {
-				ESP_LOGI(TAG_BME280, "%.2f degC / %.3f hPa / %.3f %%",
+				ESP_LOGW(TAG_BME280, "%.2f degC / %.3f hPa / %.3f %%",
 					bme280_compensate_temperature_double(v_uncomp_temperature_s32),
 					bme280_compensate_pressure_double(v_uncomp_pressure_s32)/100, // Pa -> hPa
 					bme280_compensate_humidity_double(v_uncomp_humidity_s32));
 			} else {
 				ESP_LOGE(TAG_BME280, "measure error. code: %d", com_rslt);
 			}
+			struct timeval now;
+			gettimeofday(&now, NULL);
+			int sleep_time_ms = (now.tv_sec - sleep_enter_time.tv_sec) * 1000 + (now.tv_usec - sleep_enter_time.tv_usec) / 1000;
+			switch (esp_sleep_get_wakeup_cause()) {
+				case ESP_SLEEP_WAKEUP_TIMER: {
+					ESP_LOGI(TAG_DPSP, "Wake up from timer. Time spent in deep sleep: %dms", sleep_time_ms);
+					break;
+				}
+				case ESP_SLEEP_WAKEUP_UNDEFINED:
+				default:
+					ESP_LOGI(TAG_DPSP, "Not a deep sleep reset");
+			}
+			const int wakeup_time_sec = 20;
+			ESP_LOGI(TAG_DPSP, "Enabling timer wakeup, %ds", wakeup_time_sec);
+			esp_sleep_enable_timer_wakeup(wakeup_time_sec * 1000000);
+			ESP_LOGI(TAG_DPSP, "Entering deep sleep");
+			gettimeofday(&sleep_enter_time, NULL);
+
+			esp_deep_sleep_start();
 		}
 	} else {
 		ESP_LOGE(TAG_BME280, "init or setting error. code: %d", com_rslt);
@@ -183,6 +302,6 @@ void task_bme280_forced_mode(void *ignore) {
 void app_main(void)
 {
 	i2c_master_init();
-	xTaskCreate(&task_bme280_normal_mode, "bme280_normal_mode",  2048, NULL, 6, NULL);
-	// xTaskCreate(&task_bme280_forced_mode, "bme280_forced_mode",  2048, NULL, 6, NULL);
+	//xTaskCreate(&task_bme280_normal_mode, "bme280_normal_mode",  2048, NULL, 6, NULL);
+	xTaskCreate(&task_bme280_forced_mode, "bme280_forced_mode",  2048, NULL, 6, NULL);
 }
