@@ -129,15 +129,14 @@ int veml6075_measure_uv()
 	u8 reg_data[2];
 	int ret;
 	reg_data[0] =	(0 << 7)			|
-			(UV_IT_800_MS << UV_IT_POS)	|
-			(HD_OFF << HD_POS)		|
+			(UV_IT_100_MS << UV_IT_POS)	|
+			(HD_ON << HD_POS)		|
 			(UV_TRIG << UV_TRIG_POS)	|
 			(UV_AF << UV_AF_POS)		|
 			(UV_ON << UV_ON_POS);
 	reg_data[1] = 0;
 
 	ret = i2c_write(UV_SLAVE_ADDR, UV_CONF_REG, reg_data, 2);
-	/*ret = scan_i2c(UV_CONF_REG, reg_data, 2);*/
 
 	return ret;
 }
@@ -154,28 +153,90 @@ int veml6075_get_uv(u8 *uv_a_data, u8 *uv_b_data)
 	return ret;
 }
 
-void task_veml6075_forced_mode(void *ignore) {
-
+void veml6075_force() {
 	int ret;
 	u8 uv_a_data[2], uv_b_data[2];
-	const int wakeup_time_sec = 20;
-	int sleep_time_ms;
-	struct timeval now;
 
 	ret = veml6075_get_uv(uv_a_data, uv_b_data);
 
 	if (ret == SUCCESS)
-		ESP_LOGW(TAG_VEML6075, "0x%x%x UVA / 0x%x%x UVB ",
-								uv_a_data[1],
-								uv_a_data[0],
-								uv_b_data[1],
-								uv_b_data[0]);
+		ESP_LOGW(TAG_VEML6075, "0x%02x%02x UVA / 0x%02x%02x UVB ",
+		  uv_a_data[1], uv_a_data[0], uv_b_data[1], uv_b_data[0]);
 	else
 		ESP_LOGE(TAG_VEML6075, "measure error. code: %d", ret);
 
 	ret = veml6075_measure_uv();
 	if (ret != SUCCESS)
 		ESP_LOGE(TAG_VEML6075, "Write error %d", ret);
+}
+
+void BME280_delay_msek(u32 msek)
+{
+	vTaskDelay(msek/portTICK_PERIOD_MS);
+}
+
+void bme280_compensate(double *temp_degc, double *press_hpa, double *hum_perc,
+				  s32 ucmp_press, s32 ucmp_temp, s32 ucmp_hum)
+{
+	*temp_degc = bme280_compensate_temperature_double(ucmp_temp);
+	*press_hpa = bme280_compensate_pressure_double(ucmp_press) / 100;
+	*hum_perc = bme280_compensate_humidity_double(ucmp_hum);
+}
+
+s32 bme280_take_readings(double *temp_degc, double *press_hpa, double *hum_perc)
+{
+	s32 ucmp_press;
+	s32 ucmp_temp;
+	s32 ucmp_hum;
+	s32 ret;
+
+	ret = bme280_get_forced_uncomp_pressure_temperature_humidity(
+				 &ucmp_press, &ucmp_temp, &ucmp_hum);
+
+	if (ret == SUCCESS) {
+		bme280_compensate(temp_degc, press_hpa, hum_perc,
+				 ucmp_press, ucmp_temp, ucmp_hum);
+	} else {
+		ESP_LOGE(TAG_BME280, "measure error. code: %d", ret);
+	}
+
+	return ret;
+}
+
+void bme280_force() {
+	double temp_degc, press_hpa, hum_perc;
+	s32 ret;
+
+	struct bme280_t bme280 = {
+		.bus_write = i2c_write,
+		.bus_read = i2c_read,
+		.dev_addr = BME280_I2C_ADDRESS2,
+		.delay_msec = BME280_delay_msek
+	};
+
+
+	ret = bme280_init(&bme280);
+
+	ret += bme280_set_oversamp_pressure(BME280_OVERSAMP_1X);
+	ret += bme280_set_oversamp_temperature(BME280_OVERSAMP_1X);
+	ret += bme280_set_oversamp_humidity(BME280_OVERSAMP_1X);
+
+	ret += bme280_set_filter(BME280_FILTER_COEFF_OFF);
+	if (ret == SUCCESS) {
+		bme280_take_readings(&temp_degc, &press_hpa, &hum_perc);
+		ESP_LOGW(TAG_BME280, "%.2f degC / %.3f hPa / %.3f %%",
+					temp_degc, press_hpa, hum_perc);
+	} else {
+		ESP_LOGE(TAG_BME280, "init or setting error. code: %d", ret);
+	}
+}
+void task_measure(void *ignore) {
+	const int wakeup_time_sec = 5;
+	int sleep_time_ms;
+	struct timeval now;
+
+	veml6075_force();
+	bme280_force();
 
 	gettimeofday(&now, NULL);
 	sleep_time_ms = (now.tv_sec - sleep_enter_time.tv_sec) * 1000 +
@@ -202,75 +263,9 @@ void task_veml6075_forced_mode(void *ignore) {
 
 	vTaskDelete(NULL);
 }
-
-void BME280_delay_msek(u32 msek)
-{
-	vTaskDelay(msek/portTICK_PERIOD_MS);
-}
-
-void task_bme280_forced_mode(void *ignore) {
-	struct bme280_t bme280 = {
-		.bus_write = i2c_write,
-		.bus_read = i2c_read,
-		.dev_addr = BME280_I2C_ADDRESS2,
-		.delay_msec = BME280_delay_msek
-	};
-
-	s32 com_rslt;
-	s32 v_uncomp_pressure_s32;
-	s32 v_uncomp_temperature_s32;
-	s32 v_uncomp_humidity_s32;
-
-	com_rslt = bme280_init(&bme280);
-
-	com_rslt += bme280_set_oversamp_pressure(BME280_OVERSAMP_1X);
-	com_rslt += bme280_set_oversamp_temperature(BME280_OVERSAMP_1X);
-	com_rslt += bme280_set_oversamp_humidity(BME280_OVERSAMP_1X);
-
-	com_rslt += bme280_set_filter(BME280_FILTER_COEFF_OFF);
-	if (com_rslt == SUCCESS) {
-		{
-			com_rslt = bme280_get_forced_uncomp_pressure_temperature_humidity(
-				&v_uncomp_pressure_s32, &v_uncomp_temperature_s32, &v_uncomp_humidity_s32);
-
-			if (com_rslt == SUCCESS) {
-				ESP_LOGW(TAG_BME280, "%.2f degC / %.3f hPa / %.3f %%",
-					bme280_compensate_temperature_double(v_uncomp_temperature_s32),
-					bme280_compensate_pressure_double(v_uncomp_pressure_s32)/100, // Pa -> hPa
-					bme280_compensate_humidity_double(v_uncomp_humidity_s32));
-			} else {
-				ESP_LOGE(TAG_BME280, "measure error. code: %d", com_rslt);
-			}
-			struct timeval now;
-			gettimeofday(&now, NULL);
-			int sleep_time_ms = (now.tv_sec - sleep_enter_time.tv_sec) * 1000 + (now.tv_usec - sleep_enter_time.tv_usec) / 1000;
-			switch (esp_sleep_get_wakeup_cause()) {
-				case ESP_SLEEP_WAKEUP_TIMER: {
-					ESP_LOGI(TAG_DPSP, "Wake up from timer. Time spent in deep sleep: %dms", sleep_time_ms);
-					break;
-				}
-				case ESP_SLEEP_WAKEUP_UNDEFINED:
-				default:
-					ESP_LOGI(TAG_DPSP, "Not a deep sleep reset");
-			}
-			const int wakeup_time_sec = 20;
-			ESP_LOGI(TAG_DPSP, "Enabling timer wakeup, %ds", wakeup_time_sec);
-			esp_sleep_enable_timer_wakeup(wakeup_time_sec * 1000000);
-			ESP_LOGI(TAG_DPSP, "Entering deep sleep");
-			gettimeofday(&sleep_enter_time, NULL);
-
-			esp_deep_sleep_start();
-		}
-	} else {
-		ESP_LOGE(TAG_BME280, "init or setting error. code: %d", com_rslt);
-	}
-
-	vTaskDelete(NULL);
-}
-
 void app_main(void)
 {
 	i2c_master_init();
 	/*xTaskCreate(&task_bme280_forced_mode, "bme280_forced_mode",  2048, NULL, 6, NULL);*/
-	xTaskCreate(&task_veml6075_forced_mode, "veml6075_forced_mode",  2048, NULL, 6, NULL);
+	xTaskCreate(&task_measure, "veml6075_forced_mode",  2048, NULL, 6, NULL);
 }
