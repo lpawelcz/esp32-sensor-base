@@ -23,12 +23,12 @@ struct calc_results {
 	double uv_i;
 };
 /* Coefficients for UV index calculation */
-#define A_COEF		3.33
-#define B_COEF		2.5
-#define C_COEF		3.66
-#define D_COEF		2.75
-#define UV_A_RESP	0.0011
-#define UV_B_RESP	0.00125
+#define A_COEF		2.22
+#define B_COEF		1.33
+#define C_COEF		2.95
+#define D_COEF		1.74
+#define UV_A_RESP	0.001461
+#define UV_B_RESP	0.002591
 
 /* Register addresses */
 
