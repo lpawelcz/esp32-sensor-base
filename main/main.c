@@ -143,7 +143,7 @@ int veml6075_measure_uv()
 	return ret;
 }
 
-int veml6075_get_uv(struct results *res)
+int veml6075_get_uv(struct raw_results *res)
 {
 	int ret;
 
@@ -182,7 +182,7 @@ int veml6075_get_uv(struct results *res)
 
 	return ret;
 }
-u16 veml6075_cast_to_u16(u8 *data)
+static inline u16 veml6075_cast_to_u16(u8 *data)
 {
 	u16 casted;
 	casted = ((u16) data[1]) << HIGH_BYTE;
@@ -191,30 +191,56 @@ u16 veml6075_cast_to_u16(u8 *data)
 	return casted;
 }
 
-void veml6075_cast_results()
+static inline void veml6075_cast_results(struct raw_results *raw_res,
+			   struct conv_results *conv_res)
 {
-
+	conv_res->uv_a = veml6075_cast_to_u16(raw_res->uv_a);
+	conv_res->uv_d = veml6075_cast_to_u16(raw_res->uv_d);
+	conv_res->uv_b = veml6075_cast_to_u16(raw_res->uv_b);
+	conv_res->uv_comp1 = veml6075_cast_to_u16(raw_res->uv_comp1);
+	conv_res->uv_comp2 = veml6075_cast_to_u16(raw_res->uv_comp2);
 }
 
-int veml6075_calc_uv_index(u8 *uv_a, u8 *uv_d, u8 *uv_b, u8 *uv_comp1, u8 *uv_comp2)
+static inline double veml6075_comp_uv_a(struct conv_results *res)
 {
-	u16 uv_a_, uv_d_, uv_b_, uv_comp1_, uv_comp2_;
-	uv_a_ = veml6075_cast_to_u16(uv_a);
-	uv_d_ = veml6075_cast_to_u16(uv_d);
-	uv_b_ = veml6075_cast_to_u16(uv_b);
-	uv_comp1_ = veml6075_cast_to_u16(uv_comp1);
-	uv_comp2_ = veml6075_cast_to_u16(uv_comp2);
+	return (res->uv_a - res->uv_d) -
+	       (A_COEF * (res->uv_comp1 - res->uv_d)) -
+	       (B_COEF * (res->uv_comp2 - res->uv_d));
+}
 
-	return uv_a_;
+static inline double veml6075_comp_uv_b(struct conv_results *res)
+{
+	return (res->uv_b - res->uv_d) -
+	       (C_COEF * (res->uv_comp1 - res->uv_d)) -
+	       (D_COEF * (res->uv_comp2 - res->uv_d));
+}
+
+static inline double veml6075_calc_uv_index(struct conv_results *res)
+{
+	return ((veml6075_comp_uv_b(res) * UV_B_RESP) +
+		(veml6075_comp_uv_a(res) * UV_A_RESP)) / 2;
+}
+
+static inline double veml6075_get_uv_index(struct raw_results *raw_res)
+{
+	struct conv_results res;
+	veml6075_cast_results(raw_res, &res);
+
+
+	return veml6075_calc_uv_index(&res);
 }
 
 int veml6075_force() {
-	struct results res;
+	struct raw_results raw_res;
 	int ret;
+	double uv_index;
 
-	ret = veml6075_get_uv(&res);
+	ret = veml6075_get_uv(&raw_res);
 	if (ret < 0)
 		return ret;
+	uv_index = veml6075_get_uv_index(&raw_res);
+	ESP_LOGW(TAG_VEML6075, "UV INDEX: %lf", uv_index);
+
 	ret = veml6075_measure_uv();
 
 	return ret;

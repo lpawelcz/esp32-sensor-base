@@ -1,6 +1,7 @@
 typedef unsigned char u8;
+typedef unsigned short u16;
 
-struct u8_results {
+struct raw_results {
 	u8 uv_a[2];
 	u8 uv_d[2];
 	u8 uv_b[2];
@@ -8,13 +9,26 @@ struct u8_results {
 	u8 uv_comp2[2];
 };
 
-struct u16_results {
+struct conv_results {
 	u16 uv_a;
 	u16 uv_d;
 	u16 uv_b;
 	u16 uv_comp1;
 	u16 uv_comp2;
 };
+
+struct calc_results {
+	double uv_a;
+	double uv_b;
+	double uv_i;
+};
+/* Coefficients for UV index calculation */
+#define A_COEF		3.33
+#define B_COEF		2.5
+#define C_COEF		3.66
+#define D_COEF		2.75
+#define UV_A_RESP	0.0011
+#define UV_B_RESP	0.00125
 
 /* Register addresses */
 
