@@ -130,44 +130,94 @@ int veml6075_measure_uv()
 	int ret;
 	reg_data[0] =	(0 << 7)			|
 			(UV_IT_100_MS << UV_IT_POS)	|
-			(HD_ON << HD_POS)		|
+			(HD_OFF << HD_POS)		|
 			(UV_TRIG << UV_TRIG_POS)	|
 			(UV_AF << UV_AF_POS)		|
 			(UV_ON << UV_ON_POS);
 	reg_data[1] = 0;
 
-	ret = i2c_write(UV_SLAVE_ADDR, UV_CONF_REG, reg_data, 2);
+	ret = i2c_write(UV_SLAVE_ADDR, UV_CONF, reg_data, 2);
+	if (ret != SUCCESS)
+		ESP_LOGE(TAG_VEML6075, "Write error %d", ret);
 
 	return ret;
 }
 
-int veml6075_get_uv(u8 *uv_a_data, u8 *uv_b_data)
+int veml6075_get_uv(struct results *res)
 {
 	int ret;
 
-	ret = i2c_read(UV_SLAVE_ADDR, UV_A_DATA, uv_a_data, 2);
-	if (ret < 0)
+	ret = i2c_read(UV_SLAVE_ADDR, UV_A_DATA, res->uv_a, 2);
+	if (ret < 0){
 		return ret;
-	ret = i2c_read(UV_SLAVE_ADDR, UV_B_DATA, uv_b_data, 2);
+		ESP_LOGE(TAG_VEML6075, "read UV_A_DATA error: %d", ret);
+	}
+	ret = i2c_read(UV_SLAVE_ADDR, UV_D_DATA, res->uv_d, 2);
+	if (ret < 0){
+		return ret;
+		ESP_LOGE(TAG_VEML6075, "read UV_D_DATA error: %d", ret);
+	}
+	ret = i2c_read(UV_SLAVE_ADDR, UV_B_DATA, res->uv_b, 2);
+	if (ret < 0){
+		return ret;
+		ESP_LOGE(TAG_VEML6075, "read UV_B_DATA error: %d", ret);
+	}
+	ret = i2c_read(UV_SLAVE_ADDR, UV_COMP1_DATA, res->uv_comp1, 2);
+	if (ret < 0){
+		return ret;
+		ESP_LOGE(TAG_VEML6075, "read UV_COMP1_DATA error: %d", ret);
+	}
+	ret = i2c_read(UV_SLAVE_ADDR, UV_COMP2_DATA, res->uv_comp2, 2);
+	if (ret == SUCCESS) {
+		ESP_LOGW(TAG_VEML6075, "0x%02x%02x UVA | 0x%02x%02x UVB",
+		  res->uv_a[1], res->uv_a[0], res->uv_b[1], res->uv_b[0]);
+		ESP_LOGW(TAG_VEML6075, "0x%02x%02x UVD",
+					res->uv_d[1], res->uv_d[0]);
+		ESP_LOGW(TAG_VEML6075, "0x%02x%02x UV_COMP1 | 0x%02x%02x UV_COMP2",
+					res->uv_comp1[1], res->uv_comp1[0],
+					res->uv_comp2[1], res->uv_comp2[0]);
+	} else {
+		ESP_LOGE(TAG_VEML6075, "read UV_COMP2_DATA error: %d", ret);
+	}
 
 	return ret;
 }
+u16 veml6075_cast_to_u16(u8 *data)
+{
+	u16 casted;
+	casted = ((u16) data[1]) << HIGH_BYTE;
+	casted += ((u16) data[0]) << LOW_BYTE;
 
-void veml6075_force() {
+	return casted;
+}
+
+void veml6075_cast_results()
+{
+
+}
+
+int veml6075_calc_uv_index(u8 *uv_a, u8 *uv_d, u8 *uv_b, u8 *uv_comp1, u8 *uv_comp2)
+{
+	u16 uv_a_, uv_d_, uv_b_, uv_comp1_, uv_comp2_;
+	uv_a_ = veml6075_cast_to_u16(uv_a);
+	uv_d_ = veml6075_cast_to_u16(uv_d);
+	uv_b_ = veml6075_cast_to_u16(uv_b);
+	uv_comp1_ = veml6075_cast_to_u16(uv_comp1);
+	uv_comp2_ = veml6075_cast_to_u16(uv_comp2);
+
+	return uv_a_;
+}
+
+int veml6075_force() {
+	struct results res;
 	int ret;
-	u8 uv_a_data[2], uv_b_data[2];
 
-	ret = veml6075_get_uv(uv_a_data, uv_b_data);
-
-	if (ret == SUCCESS)
-		ESP_LOGW(TAG_VEML6075, "0x%02x%02x UVA / 0x%02x%02x UVB ",
-		  uv_a_data[1], uv_a_data[0], uv_b_data[1], uv_b_data[0]);
-	else
-		ESP_LOGE(TAG_VEML6075, "measure error. code: %d", ret);
-
+	ret = veml6075_get_uv(&res);
+	if (ret < 0)
+		return ret;
 	ret = veml6075_measure_uv();
-	if (ret != SUCCESS)
-		ESP_LOGE(TAG_VEML6075, "Write error %d", ret);
+
+	return ret;
 }
 
 void BME280_delay_msek(u32 msek)
