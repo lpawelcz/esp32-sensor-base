@@ -17,10 +17,21 @@ struct conv_results {
 	u16 uv_comp2;
 };
 
-struct calc_results {
-	double uv_a;
-	double uv_b;
-	double uv_i;
+struct veml6075_results {
+	float uv_a;
+	float uv_b;
+	float uv_i;
+};
+
+struct bme280_results {
+	float temp;
+	float press;
+	float hum;
+};
+
+struct measurements {
+	struct veml6075_results uv_res;
+	struct bme280_results tph_res;
 };
 /* Coefficients for UV index calculation */
 #define A_COEF		2.22
