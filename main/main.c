@@ -12,13 +12,13 @@
 
 #include "bme280.h"
 #include "veml6075.h"
+#include "ble.h"
 
 #define SDA_PIN GPIO_NUM_21
 #define SCL_PIN GPIO_NUM_22
 
 #define TAG_BME280 "BME280"
 #define TAG_VEML6075 "VEML6075"
-#define TAG_BLE "BLE"
 #define TAG_DPSP "DEEP SLEEP"
 
 #define I2C_MASTER_ACK 0
@@ -368,10 +368,14 @@ static inline void float2bytes(float float_val, u8 *arr)
 int ble_prepare_binary_measurements(struct measurements *meas, u8 *adv, u8 bytes_cnt)
 {
 	u8 i;
-
-	adv[0] = bytes_cnt - 1;
-	adv[1] = 0xFF;
-	i = 2;
+	adv[0] = 0x02;
+	adv[1] = 0x01;
+	adv[2] = 0x06;
+	adv[3] = bytes_cnt - 4;
+	adv[4] = 0xFF;
+	adv[5] = 0x02;
+	adv[6] = 0xE5;
+	i = 7;
 	float2bytes(meas->uv_res.uv_a, &adv[i]);
 	i += 4;
 	float2bytes(meas->uv_res.uv_b, &adv[i]);
@@ -385,7 +389,9 @@ int ble_prepare_binary_measurements(struct measurements *meas, u8 *adv, u8 bytes
 	float2bytes(meas->tph_res.hum, &adv[i]);
 	i += 4;
 
-	for (i = 2; i < bytes_cnt; i += 4) {
+	ESP_LOGW(TAG_BLE, "adv hex: %02X|%02X|%02X|%02X|%02X|%02X|%02X|",
+		adv[0], adv[1], adv[2], adv[3], adv[4], adv[5], adv[6]);
+	for (i = 7; i < bytes_cnt; i += 4) {
 		ESP_LOGW(TAG_BLE, "converted float hex: 0x%02X%02X%02X%02X",
 			adv[i+3], adv[i+2], adv[i+1], adv[i+0]);
 	}
@@ -416,7 +422,7 @@ int ble_transmit_measurements(u8 *adv, u8 bytes_cnt)
 void task_measure(void *ignore) {
 	const int wakeup_time_sec = 5;
 	const u8 bytes_cnt = sizeof(struct veml6075_results) +
-			     sizeof(struct bme280_results) + 2;
+			     sizeof(struct bme280_results) + 7;
 	int sleep_time_ms;
 	struct timeval now;
 	struct veml6075_results uv_res;
@@ -461,6 +467,9 @@ void task_measure(void *ignore) {
 void app_main(void)
 {
 	i2c_master_init();
-	/*xTaskCreate(&task_bme280_forced_mode, "bme280_forced_mode",  2048, NULL, 6, NULL);*/
-	xTaskCreate(&task_measure, "veml6075_forced_mode",  2048, NULL, 6, NULL);
+	/*
+	 *xTaskCreate(&task_bme280_forced_mode, "bme280_forced_mode",
+	 *                                        2048, NULL, 6, NULL);
+	 */
+	xTaskCreate(&task_measure, "task_measure", 2048, NULL, 6, NULL);
 }
