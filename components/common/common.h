@@ -1,11 +1,17 @@
 #ifndef _COMMON_H
 #define _COMMON_H
 
+#include "esp_err.h"
+#include "esp_log.h"
+
 #define HIGH_BYTE	0x8
 #define LOW_BYTE	0x0
 
 typedef unsigned char u8;
 typedef unsigned short u16;
+typedef signed char s8;
+typedef signed short s16;
+typedef signed int s32;
 
 /* Forward declaration from: */
 struct veml6075_results; 	/* veml6075.h */

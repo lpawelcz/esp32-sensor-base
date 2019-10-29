@@ -2,6 +2,7 @@
 #define _VEML6075_H
 
 #include "common.h"
+#include "i2c.h"
 
 struct raw_results {
 	u8 uv_a[2];
@@ -80,6 +81,62 @@ struct bme280_results {
 #define UV_TRIG_POS	0x2
 #define UV_AF_POS	0x1
 #define UV_ON_POS	0x0
+
+int veml6075_measure_uv();
+int veml6075_get_uv(struct raw_results *res);
+int veml6075_force(struct veml6075_results *res);
+
+static inline u16 veml6075_cast_to_u16(u8 *data)
+{
+	u16 casted;
+	casted = ((u16) data[1]) << HIGH_BYTE;
+	casted += ((u16) data[0]) << LOW_BYTE;
+
+	return casted;
+}
+
+static inline void veml6075_cast_results(struct raw_results *raw_res,
+			   struct conv_results *conv_res)
+{
+	conv_res->uv_a = veml6075_cast_to_u16(raw_res->uv_a);
+	conv_res->uv_d = veml6075_cast_to_u16(raw_res->uv_d);
+	conv_res->uv_b = veml6075_cast_to_u16(raw_res->uv_b);
+	conv_res->uv_comp1 = veml6075_cast_to_u16(raw_res->uv_comp1);
+	conv_res->uv_comp2 = veml6075_cast_to_u16(raw_res->uv_comp2);
+}
+
+static inline float veml6075_comp_uv_a(struct conv_results *res)
+{
+	return (res->uv_a - res->uv_d) -
+	       (A_COEF * (res->uv_comp1 - res->uv_d)) -
+	       (B_COEF * (res->uv_comp2 - res->uv_d));
+}
+
+static inline float veml6075_comp_uv_b(struct conv_results *res)
+{
+	return (res->uv_b - res->uv_d) -
+	       (C_COEF * (res->uv_comp1 - res->uv_d)) -
+	       (D_COEF * (res->uv_comp2 - res->uv_d));
+}
+
+static inline float veml6075_calc_uv_index(float comp_uv_a, float comp_uv_b)
+{
+	return ((comp_uv_b * UV_B_RESP) + (comp_uv_a * UV_A_RESP)) / 2;
+}
+
+static inline float veml6075_get_uv_index(struct raw_results *raw_res,
+					   struct veml6075_results *res)
+{
+	struct conv_results conv_res;
+
+	veml6075_cast_results(raw_res, &conv_res);
+
+	res->uv_a = veml6075_comp_uv_a(&conv_res);
+	res->uv_b = veml6075_comp_uv_b(&conv_res);
+	res->uv_i = veml6075_calc_uv_index(res->uv_a, res->uv_b);
+
+	return res->uv_i;
+}
 
 #endif
 /* ifndef _VEML6075_H */
