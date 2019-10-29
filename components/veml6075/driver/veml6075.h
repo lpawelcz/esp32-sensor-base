@@ -1,5 +1,7 @@
-typedef unsigned char u8;
-typedef unsigned short u16;
+#ifndef _VEML6075_H
+#define _VEML6075_H
+
+#include "common.h"
 
 struct raw_results {
 	u8 uv_a[2];
@@ -29,10 +31,8 @@ struct bme280_results {
 	float hum;
 };
 
-struct measurements {
-	struct veml6075_results uv_res;
-	struct bme280_results tph_res;
-};
+#define TAG_VEML6075 "VEML6075"
+
 /* Coefficients for UV index calculation */
 #define A_COEF		2.22
 #define B_COEF		1.33
@@ -81,5 +81,5 @@ struct measurements {
 #define UV_AF_POS	0x1
 #define UV_ON_POS	0x0
 
-#define HIGH_BYTE	0x8
-#define LOW_BYTE	0x0
+#endif
+/* ifndef _VEML6075_H */
