@@ -438,10 +438,6 @@ void task_measure(void *ignore) {
 void app_main(void)
 {
 	i2c_master_init();
-	/*
-	 *xTaskCreate(&task_bme280_forced_mode, "bme280_forced_mode",
-	 *                                        2048, NULL, 6, NULL);
-	 */
 	xTaskCreate(&task_measure, "task_measure", 2048, NULL, 6, NULL);
     int rc;
 
@@ -492,9 +488,8 @@ void app_main(void)
 
     nimble_port_freertos_init(bleprph_host_task);
 
-    /* Initialize command line interface to accept input from user */
-    rc = scli_init();
-    if (rc != ESP_OK) {
-        ESP_LOGE(BLE_TAG, "scli_init() failed");
+    while (1) {
+	xTaskCreate(&task_measure, "task_measure", 2048, NULL, 6, NULL);
+	vTaskDelay(5000/portTICK_PERIOD_MS);
     }
 }
