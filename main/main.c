@@ -32,7 +32,6 @@ static uint8_t own_addr_type;
 
 void ble_store_config_init(void);
 
-struct measurements meas;
 /**
  * Logs information about a connection to the console.
  */
@@ -336,9 +335,9 @@ void BME280_delay_msek(u32 msek)
 void bme280_compensate(struct bme280_results *res, s32 ucmp_press,
 					s32 ucmp_temp, s32 ucmp_hum)
 {
-	res->temp = (float)bme280_compensate_temperature_double(ucmp_temp);
-	res->press = (float)bme280_compensate_pressure_double(ucmp_press) / 100;
-	res->hum = (float)bme280_compensate_humidity_double(ucmp_hum);
+	res->temp = (signed short int)(bme280_compensate_temperature_double(ucmp_temp) * 100);
+	res->press = (unsigned int)(bme280_compensate_pressure_double(ucmp_press) * 10);
+	res->hum = (unsigned short int)(bme280_compensate_humidity_double(ucmp_hum) *100);
 }
 
 s32 bme280_take_readings(struct bme280_results *res)
@@ -380,7 +379,7 @@ void bme280_force(struct bme280_results *res) {
 	ret += bme280_set_filter(BME280_FILTER_COEFF_OFF);
 	if (ret == SUCCESS) {
 		bme280_take_readings(res);
-		ESP_LOGW(TAG_BME280, "%.2f degC / %.3f hPa / %.3f %%",
+		ESP_LOGW(TAG_BME280, "%d degC / %d hPa / %d%%",
 					res->temp, res->press, res->hum);
 	} else {
 		ESP_LOGE(TAG_BME280, "init or setting error. code: %d", ret);
@@ -485,7 +484,7 @@ void app_main(void)
     assert(rc == 0);
 
     /* Set the default device name. */
-    rc = ble_svc_gap_device_name_set("nimble-bleprph");
+    rc = ble_svc_gap_device_name_set("esp32-env_sensor");
     assert(rc == 0);
 
     /* XXX Need to have template for store */

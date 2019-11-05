@@ -20,7 +20,7 @@ struct bme280_results;		/* bme280.h */
 struct measurements {
 	struct veml6075_results *uv_res;
 	struct bme280_results *tph_res;
-};
+} meas;
 
 #endif
 /* ifndef _COMMON_H */

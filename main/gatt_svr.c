@@ -25,13 +25,15 @@
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 #include "bleprph.h"
+#include "common.h"
+#include "veml6075.h"
 
 #define BLE_TAG "BLE_PRPH"
 
-static signed short int temp = 1;
-static unsigned short int hum = 2;
-static unsigned int press = 3;
-static unsigned char uvi = 4;
+static signed short int temp;
+static unsigned short int hum;
+static unsigned int press;
+static unsigned char uvi;
 
 /* Environmental Sensing Service (ESS) */
 static const ble_uuid128_t gatt_svr_ess_uuid =
@@ -118,7 +120,8 @@ gatt_svr_chr_access_sec_test(uint16_t conn_handle, uint16_t attr_handle,
         assert(ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR);
 
         /* Respond with a signed 16-bit temperature in degrees Clesius */
-        temp = rand() % (4020 - (-4100) + 1) - 4100;
+        temp = meas.tph_res->temp;
+	/*rand() % (4020 - (-4100) + 1) - 4100;*/
         rc = os_mbuf_append(ctxt->om, &temp, sizeof temp);
 
         return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
@@ -127,7 +130,8 @@ gatt_svr_chr_access_sec_test(uint16_t conn_handle, uint16_t attr_handle,
         assert(ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR);
 
         /* Respond with a unsigned 16-bit humidity in percent */
-        hum = rand() % 10001;
+        /*hum = rand() % 10001;*/
+        hum = meas.tph_res->hum;
         rc = os_mbuf_append(ctxt->om, &hum, sizeof hum);
         return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
     }
@@ -135,7 +139,8 @@ gatt_svr_chr_access_sec_test(uint16_t conn_handle, uint16_t attr_handle,
         assert(ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR);
 
         /* Respond with a unsigned 32-bit pressure in Pa */
-        press = rand() % (1086000 - 965200 + 1) + 965200;
+        /*press = rand() % (1086000 - 965200 + 1) + 965200;*/
+        press = meas.tph_res->press;
         rc = os_mbuf_append(ctxt->om, &press, sizeof press);
 
         return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
@@ -144,7 +149,8 @@ gatt_svr_chr_access_sec_test(uint16_t conn_handle, uint16_t attr_handle,
         assert(ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR);
 
         /* Respond with a unsigned 8-bit UV index */
-        uvi = rand() % 12;
+	/*uvi = rand() % 12;*/
+        uvi = meas.uv_res->uv_i;
         rc = os_mbuf_append(ctxt->om, &uvi, sizeof uvi);
         return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
     }

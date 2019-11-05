@@ -23,13 +23,13 @@ struct conv_results {
 struct veml6075_results {
 	float uv_a;
 	float uv_b;
-	float uv_i;
+	unsigned char uv_i;
 };
 
 struct bme280_results {
-	float temp;
-	float press;
-	float hum;
+	signed short int temp;
+	unsigned int press;
+	unsigned short int hum;
 };
 
 #define TAG_VEML6075 "VEML6075"
@@ -133,7 +133,7 @@ static inline float veml6075_get_uv_index(struct raw_results *raw_res,
 
 	res->uv_a = veml6075_comp_uv_a(&conv_res);
 	res->uv_b = veml6075_comp_uv_b(&conv_res);
-	res->uv_i = veml6075_calc_uv_index(res->uv_a, res->uv_b);
+	res->uv_i = (unsigned char)veml6075_calc_uv_index(res->uv_a, res->uv_b);
 
 	return res->uv_i;
 }
