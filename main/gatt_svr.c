@@ -42,8 +42,10 @@ static const ble_uuid128_t gatt_svr_ess_uuid =
 
 /* Temperature characteristic */
 static const ble_uuid128_t gatt_svr_ess_temp_uuid =
-	BLE_UUID128_INIT(0xFB, 0x34, 0x9B, 0x5f, 0x80, 0x00, 0x00, 0x80 ,0x00,
-				     0x10, 0x00, 0x00, 0x6E, 0x2A, 0x00, 0x00);
+	BLE_UUID128_INIT(0xFB, 0x34, 0x9B, 0x5f,
+			 0x80, 0x00, 0x00, 0x80,
+			 0x00, 0x10, 0x00, 0x00,
+			 0x6E, 0x2A, 0x00, 0x00);
 
 /* Humidity characteristic */
 static const ble_uuid128_t gatt_svr_ess_hum_uuid =
@@ -73,19 +75,19 @@ static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
 		.characteristics = (struct ble_gatt_chr_def[]) {
 			{	/* Temperature characteristic */
 				.uuid = &gatt_svr_ess_temp_uuid.u,
-				.access_cb = gatt_svr_chr_access_sec_test,
+				.access_cb = gatt_svr_chr_access_test,
 				.flags = BLE_GATT_CHR_F_READ,
 			}, {	/* Humidity characteristic */
 				.uuid = &gatt_svr_ess_hum_uuid.u,
-				.access_cb = gatt_svr_chr_access_sec_test,
+				.access_cb = gatt_svr_chr_access_test,
 				.flags = BLE_GATT_CHR_F_READ,
 			}, {	/* Pressure characteristic */
-				.uuid = &gatt_svr_ess_press_uuid.u,
-				.access_cb = gatt_svr_chr_access_sec_test,
+				.uuid = &gatt_svr_ess_press_uuid.
+				.access_cb = gatt_svr_chr_access_test,
 				.flags = BLE_GATT_CHR_F_READ,
 			}, {	/* UV index characteristic */
 				.uuid = &gatt_svr_ess_uvi_uuid.u,
-				.access_cb = gatt_svr_chr_access_sec_test,
+				.access_cb = gatt_svr_chr_access_test,
 				.flags = BLE_GATT_CHR_F_READ,
 			}, {
 			0, /* No more characteristics in this service. */
@@ -96,7 +98,7 @@ static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
 	},
 };
 
-static int gatt_svr_chr_access_sec_test(uint16_t conn_handle,
+static int gatt_svr_chr_access_test(uint16_t conn_handle,
 					uint16_t attr_handle,
 					struct ble_gatt_access_ctxt *ctxt,
 					void *arg)
