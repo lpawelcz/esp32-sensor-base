@@ -15,6 +15,8 @@
 
 #include "esp_log.h"
 #include "nvs_flash.h"
+
+#include "ble.h"
 /* BLE */
 #include "esp_nimble_hci.h"
 #include "nimble/nimble_port.h"
@@ -24,12 +26,6 @@
 #include "console/console.h"
 #include "services/gap/ble_svc_gap.h"
 #include "bleprph.h"
-
-#define BLE_TAG "BLE_PRPH"
-
-static int bleprph_gap_event(struct ble_gap_event *event, void *arg);
-static uint8_t own_addr_type;
-void ble_store_config_init(void);
 
 /**
  * Logs information about a connection to the console.
