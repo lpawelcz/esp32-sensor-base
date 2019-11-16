@@ -473,7 +473,7 @@ void app_main(void)
 	assert(rc == 0);
 
 	/* Set the default device name. */
-	rc = ble_svc_gap_device_name_set("esp32-env_sensor");
+	rc = ble_svc_gap_device_name_set("env-#1");
 	assert(rc == 0);
 
 	/* XXX Need to have template for store */
