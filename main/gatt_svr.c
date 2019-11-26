@@ -29,7 +29,10 @@
 #include "veml6075.h"
 #include "ble.h"
 
+#include "freertos/task.h"
 #define BLE_TAG "BLE_PRPH"
+
+extern TaskHandle_t sleep_task_h;
 
 static signed short int temp;
 static unsigned short int hum;
@@ -145,6 +148,7 @@ static int gatt_svr_chr_access_test(uint16_t conn_handle,
 		/* Respond with a unsigned 8-bit UV index */
 		uvi = meas.uv_res->uv_i;
 		rc = os_mbuf_append(ctxt->om, &uvi, sizeof uvi);
+		xTaskNotify(sleep_task_h, 0, eNoAction);
 		return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 	}
 
