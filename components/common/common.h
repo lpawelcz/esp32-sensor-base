@@ -3,7 +3,10 @@
 
 #include "esp_err.h"
 #include "esp_log.h"
+#include "esp_sleep.h"
+#include <sys/time.h>
 
+#define TAG_DPSP "DEEP SLEEP"
 #define HIGH_BYTE	0x8
 #define LOW_BYTE	0x0
 
