@@ -33,6 +33,7 @@
 #define BLE_TAG "BLE_PRPH"
 
 extern TaskHandle_t sleep_task_h;
+extern SemaphoreHandle_t measure_sem;
 
 static signed short int temp;
 static unsigned short int hum;
@@ -66,7 +67,7 @@ static const ble_uuid128_t gatt_svr_ess_uvi_uuid =
 	BLE_UUID128_INIT(0xFB, 0x34, 0x9B, 0x5f, 0x80, 0x00, 0x00, 0x80 ,0x00,
 				     0x10, 0x00, 0x00, 0x76, 0x2A, 0x00, 0x00);
 
-static int gatt_svr_chr_access_test(uint16_t conn_handle,
+static int gatt_char_access(uint16_t conn_handle,
 					uint16_t attr_handle,
 					struct ble_gatt_access_ctxt *ctxt,
 					void *arg);
@@ -79,19 +80,19 @@ static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
 		.characteristics = (struct ble_gatt_chr_def[]) {
 			{	/* Temperature characteristic */
 				.uuid = &gatt_svr_ess_temp_uuid.u,
-				.access_cb = gatt_svr_chr_access_test,
+				.access_cb = gatt_char_access,
 				.flags = BLE_GATT_CHR_F_READ,
 			}, {	/* Humidity characteristic */
 				.uuid = &gatt_svr_ess_hum_uuid.u,
-				.access_cb = gatt_svr_chr_access_test,
+				.access_cb = gatt_char_access,
 				.flags = BLE_GATT_CHR_F_READ,
 			}, {	/* Pressure characteristic */
 				.uuid = &gatt_svr_ess_press_uuid,
-				.access_cb = gatt_svr_chr_access_test,
+				.access_cb = gatt_char_access,
 				.flags = BLE_GATT_CHR_F_READ,
 			}, {	/* UV index characteristic */
 				.uuid = &gatt_svr_ess_uvi_uuid.u,
-				.access_cb = gatt_svr_chr_access_test,
+				.access_cb = gatt_char_access,
 				.flags = BLE_GATT_CHR_F_READ,
 			}, {
 			0, /* No more characteristics in this service. */
@@ -102,7 +103,7 @@ static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
 	},
 };
 
-static int gatt_svr_chr_access_test(uint16_t conn_handle,
+static int gatt_char_access(uint16_t conn_handle,
 					uint16_t attr_handle,
 					struct ble_gatt_access_ctxt *ctxt,
 					void *arg)
@@ -120,7 +121,12 @@ static int gatt_svr_chr_access_test(uint16_t conn_handle,
 		assert(ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR);
 
 		/* Respond with a signed 16-bit temperature in degrees Clesius */
-		temp = meas.tph_res->temp;
+		if (xSemaphoreTake(measure_sem, (TickType_t)20) == pdTRUE) {
+			temp = meas.tph_res->temp;
+			xSemaphoreGive(measure_sem);
+		} else {
+			return -1;
+		}
 		rc = os_mbuf_append(ctxt->om, &temp, sizeof temp);
 
 		return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
@@ -129,7 +135,12 @@ static int gatt_svr_chr_access_test(uint16_t conn_handle,
 		assert(ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR);
 
 		/* Respond with a unsigned 16-bit humidity in percent */
-		hum = meas.tph_res->hum;
+		if (xSemaphoreTake(measure_sem, (TickType_t)20) == pdTRUE) {
+			hum = meas.tph_res->hum;
+			xSemaphoreGive(measure_sem);
+		} else {
+			return -1;
+		}
 		rc = os_mbuf_append(ctxt->om, &hum, sizeof hum);
 		return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 	}
@@ -137,7 +148,12 @@ static int gatt_svr_chr_access_test(uint16_t conn_handle,
 		assert(ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR);
 
 		/* Respond with a unsigned 32-bit pressure in Pa */
-		press = meas.tph_res->press;
+		if (xSemaphoreTake(measure_sem, (TickType_t)20) == pdTRUE) {
+			press = meas.tph_res->press;
+			xSemaphoreGive(measure_sem);
+		} else {
+			return -1;
+		}
 		rc = os_mbuf_append(ctxt->om, &press, sizeof press);
 
 		return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
@@ -146,7 +162,12 @@ static int gatt_svr_chr_access_test(uint16_t conn_handle,
 		assert(ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR);
 
 		/* Respond with a unsigned 8-bit UV index */
-		uvi = meas.uv_res->uv_i;
+		if (xSemaphoreTake(measure_sem, (TickType_t)20) == pdTRUE) {
+			uvi = meas.uv_res->uv_i;
+			xSemaphoreGive(measure_sem);
+		} else {
+			return -1;
+		}
 		rc = os_mbuf_append(ctxt->om, &uvi, sizeof uvi);
 		xTaskNotify(sleep_task_h, 0, eNoAction);
 		return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;

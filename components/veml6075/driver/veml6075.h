@@ -128,14 +128,16 @@ static inline float veml6075_get_uv_index(struct raw_results *raw_res,
 					   struct veml6075_results *res)
 {
 	struct conv_results conv_res;
+	float uv_i;
 
 	veml6075_cast_results(raw_res, &conv_res);
 
 	res->uv_a = veml6075_comp_uv_a(&conv_res);
 	res->uv_b = veml6075_comp_uv_b(&conv_res);
-	res->uv_i = (unsigned char)veml6075_calc_uv_index(res->uv_a, res->uv_b);
+	uv_i = veml6075_calc_uv_index(res->uv_a, res->uv_b);
+	res->uv_i = (unsigned char)uv_i;
 
-	return res->uv_i;
+	return uv_i;
 }
 
 #endif
